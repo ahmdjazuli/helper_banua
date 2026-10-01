@@ -3,14 +3,29 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import '../../widgets/background.dart';
+import '../../widgets/format_angka.dart';
 
-class RiwayatTransaksiScreen extends StatelessWidget {
+class RiwayatTransaksiScreen extends StatefulWidget {
   const RiwayatTransaksiScreen({super.key});
+
+  @override
+  State<RiwayatTransaksiScreen> createState() => _RiwayatTransaksiScreenState();
+}
+
+class _RiwayatTransaksiScreenState extends State<RiwayatTransaksiScreen> {
+  int _currentPage = 0;
+  static const int _itemsPerPage = 8; // Maksimal 8 data per halaman
 
   @override
   Widget build(BuildContext context) {
     final User? user = FirebaseAuth.instance.currentUser;
     final String currentUid = user?.uid ?? '';
+
+    final NumberFormat currencyFormatter = NumberFormat.currency(
+      locale: 'id_ID',
+      symbol: '',
+      decimalDigits: 0,
+    );
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -39,7 +54,7 @@ class RiwayatTransaksiScreen extends StatelessWidget {
                 ),
               ),
 
-              // LIST RIWAYAT TRANSAKSI
+              // LIST RIWAYAT TRANSAKSI DENGAN PAGINATION
               Expanded(
                 child: currentUid.isEmpty
                     ? const Center(
@@ -50,9 +65,8 @@ class RiwayatTransaksiScreen extends StatelessWidget {
                       )
                     : StreamBuilder<QuerySnapshot>(
                         stream: FirebaseFirestore.instance
-                            .collection('transactions') // Pastikan namanya 'transactions'
+                            .collection('transactions')
                             .where('userId', isEqualTo: currentUid)
-                            // HAPUS ATAU HILANGKAN .orderBy('createdAt') DARI QUERY AGAR TIDAK BUTUH INDEX
                             .snapshots(),
                         builder: (context, snapshot) {
                           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -62,12 +76,15 @@ class RiwayatTransaksiScreen extends StatelessWidget {
                           }
 
                           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                            return Center(
-                              // Widget tampilan belum ada riwayat...
+                            return const Center(
+                              child: Text(
+                                'Belum ada riwayat transaksi',
+                                style: TextStyle(color: Colors.black54),
+                              ),
                             );
                           }
 
-                          // Trik dari file lama: Urutkan data di memori Flutter (Terbaru ke Terlama)
+                          // Urutkan data di memori (Terbaru ke Terlama)
                           final docs = List<QueryDocumentSnapshot>.from(snapshot.data!.docs);
                           docs.sort((a, b) {
                             final dataA = a.data() as Map<String, dynamic>;
@@ -76,100 +93,189 @@ class RiwayatTransaksiScreen extends StatelessWidget {
                             final Timestamp? timeB = dataB['createdAt'] as Timestamp?;
 
                             if (timeA == null || timeB == null) return 0;
-                            return timeB.compareTo(timeA); // Terbalik (descending)
+                            return timeB.compareTo(timeA);
                           });
 
-                          return ListView.separated(
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                            itemCount: docs.length,
-                            separatorBuilder: (context, index) => const SizedBox(height: 12),
-                            itemBuilder: (context, index) {
-                              final data = docs[index].data() as Map<String, dynamic>;
-                              final String type = data['type'] ?? 'TOPUP';
-                              final num amount = data['amount'] ?? 0;
-                              final String status = data['status'] ?? 'PENDING';
-                              final String title = data['description'] ??
-                                  (type == 'TOPUP' ? 'Top Up Saldo' : 'Penarikan Saldo');
+                          // Logika Pagination
+                          final int totalItems = docs.length;
+                          final int totalPages = (totalItems / _itemsPerPage).ceil();
 
-                              final Timestamp? timestamp = data['createdAt'] as Timestamp?;
-                              final DateTime date = timestamp != null ? timestamp.toDate() : DateTime.now();
-                              final String formattedDate = DateFormat('dd MMM yyyy, HH:mm').format(date);
+                          // Validasi agar _currentPage tidak melebihi batas jika data berkurang
+                          if (_currentPage >= totalPages && totalPages > 0) {
+                            _currentPage = totalPages - 1;
+                          }
 
-                              bool isMasuk = type.toUpperCase() == 'TOPUP';
+                          final int startIndex = _currentPage * _itemsPerPage;
+                          final int endIndex = (startIndex + _itemsPerPage < totalItems)
+                              ? startIndex + _itemsPerPage
+                              : totalItems;
 
-                              return Container(
-                                padding: const EdgeInsets.all(14),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(12),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.08),
-                                      blurRadius: 6,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ],
-                                ),
-                                child: Row(
-                                  children: [
-                                    // Ikon Status/Tipe
-                                    Container(
-                                      width: 44,
-                                      height: 44,
+                          final pageDocs = docs.sublist(startIndex, endIndex);
+
+                          return Column(
+                            children: [
+                              // Daftar Data Sesuai Halaman Aktif
+                              Expanded(
+                                child: ListView.separated(
+                                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                                  itemCount: pageDocs.length,
+                                  separatorBuilder: (context, index) => const SizedBox(height: 12),
+                                  itemBuilder: (context, index) {
+                                    final data = pageDocs[index].data() as Map<String, dynamic>;
+                                    final String type = data['type'] ?? 'TOPUP';
+                                    final num amount = data['amount'] ?? 0;
+                                    final String status = data['status'] ?? 'PENDING';
+                                    final String title = data['description'] ??
+                                        (type == 'TOPUP' ? 'Top Up Saldo' : 'Penarikan Saldo');
+
+                                    final Timestamp? timestamp = data['createdAt'] as Timestamp?;
+                                    final DateTime date = timestamp != null
+                                        ? timestamp.toDate().toLocal()
+                                        : DateTime.now();
+                                    final String formattedDate =
+                                        DateFormat('dd MMM yyyy, HH:mm').format(date);
+
+                                    bool isMasuk = type.toUpperCase() == 'TOPUP';
+
+                                    return Container(
+                                      padding: const EdgeInsets.all(14),
                                       decoration: BoxDecoration(
-                                        color: isMasuk ? Colors.green.shade50 : Colors.red.shade50,
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: Icon(
-                                        isMasuk ? Icons.add_card_rounded : Icons.outbox_rounded,
-                                        color: isMasuk ? Colors.green.shade700 : Colors.red.shade700,
-                                        size: 22,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-
-                                    // Detail Transaksi
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            title,
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 14,
-                                              color: Colors.black,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            formattedDate,
-                                            style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(12),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withOpacity(0.08),
+                                            blurRadius: 6,
+                                            offset: const Offset(0, 2),
                                           ),
                                         ],
                                       ),
-                                    ),
-
-                                    // Nominal dan Status
-                                    Column(
-                                      crossAxisAlignment: CrossAxisAlignment.end,
-                                      children: [
-                                        Text(
-                                          '${isMasuk ? "+" : "-"} Rp ${_formatCurrency(amount)}',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w900,
-                                            fontSize: 14,
-                                            color: isMasuk ? Colors.green.shade700 : Colors.red.shade700,
+                                      child: Row(
+                                        children: [
+                                          // Ikon Status/Tipe
+                                          Container(
+                                            width: 44,
+                                            height: 44,
+                                            decoration: BoxDecoration(
+                                              color: isMasuk ? Colors.green.shade50 : Colors.red.shade50,
+                                              shape: BoxShape.circle,
+                                            ),
+                                            child: Icon(
+                                              isMasuk ? Icons.add_card_rounded : Icons.outbox_rounded,
+                                              color: isMasuk ? Colors.green.shade700 : Colors.red.shade700,
+                                              size: 22,
+                                            ),
                                           ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        _buildStatusBadge(status),
-                                      ],
-                                    ),
-                                  ],
+                                          const SizedBox(width: 12),
+
+                                          // Detail Transaksi
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  title,
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 14,
+                                                    color: Colors.black,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  formattedDate,
+                                                  style: TextStyle(
+                                                      fontSize: 11, color: Colors.grey.shade600),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+
+                                          // Nominal dan Status
+                                          Column(
+                                            crossAxisAlignment: CrossAxisAlignment.end,
+                                            children: [
+                                              Text(
+                                                '${isMasuk ? "+" : "-"} Rp ${currencyFormatter.format(amount)}',
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.w900,
+                                                  fontSize: 14,
+                                                  color: isMasuk
+                                                      ? Colors.green.shade700
+                                                      : Colors.red.shade700,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              _buildStatusBadge(status),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  },
                                 ),
-                              );
-                            },
+                              ),
+
+                              // BAR KONTROL PAGINATION
+                              if (totalPages > 1)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.05),
+                                        blurRadius: 10,
+                                        offset: const Offset(0, -2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      // Tombol Previous
+                                      IconButton(
+                                        onPressed: _currentPage > 0
+                                            ? () {
+                                                setState(() {
+                                                  _currentPage--;
+                                                });
+                                              }
+                                            : null,
+                                        icon: const Icon(Icons.arrow_back_ios_rounded),
+                                        iconSize: 18,
+                                        color: Colors.black,
+                                        disabledColor: Colors.grey.shade300,
+                                      ),
+
+                                      // Teks Halaman
+                                      Text(
+                                        'Halaman ${_currentPage + 1} dari $totalPages',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 13,
+                                          color: Colors.black87,
+                                        ),
+                                      ),
+
+                                      // Tombol Next
+                                      IconButton(
+                                        onPressed: _currentPage < totalPages - 1
+                                            ? () {
+                                                setState(() {
+                                                  _currentPage++;
+                                                });
+                                              }
+                                            : null,
+                                        icon: const Icon(Icons.arrow_forward_ios_rounded),
+                                        iconSize: 18,
+                                        color: Colors.black,
+                                        disabledColor: Colors.grey.shade300,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                            ],
                           );
                         },
                       ),
@@ -181,13 +287,6 @@ class RiwayatTransaksiScreen extends StatelessWidget {
     );
   }
 
-  String _formatCurrency(num amount) {
-    return amount.toStringAsFixed(0).replaceAllMapped(
-          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-          (Match m) => '${m[1]}.',
-        );
-  }
-
   Widget _buildStatusBadge(String status) {
     Color bgColor;
     Color textColor;
@@ -197,6 +296,7 @@ class RiwayatTransaksiScreen extends StatelessWidget {
       case 'SUCCESS':
       case 'BERHASIL':
       case 'PAID':
+      case 'COMPLETED':
         bgColor = Colors.green.shade100;
         textColor = Colors.green.shade800;
         label = 'Berhasil';

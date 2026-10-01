@@ -7,7 +7,8 @@ import '../../widgets/background.dart';
 import '../../widgets/home_header.dart';
 import '../../widgets/changelog_dialog.dart';
 import '../payment/riwayat_transaksi.dart';
-import '../payment/topup.dart'; // Import Halaman Top Up
+import '../payment/topup.dart';
+import '../payment/tarik.dart';
 
 class HomeScreen extends StatefulWidget {
   final Function(String title, String icon)? onNavigateToDetail;
@@ -255,7 +256,14 @@ class _HomeScreenState extends State<HomeScreen> {
                                         const SizedBox(width: 12),
                                         Expanded(
                                           child: OutlinedButton(
-                                            onPressed: () {},
+                                            onPressed: () {
+                                              Navigator.push(
+                                                context,
+                                                MaterialPageRoute(
+                                                  builder: (context) => const TarikSaldoScreen(),
+                                                ),
+                                              );
+                                            },
                                             style: OutlinedButton.styleFrom(
                                               foregroundColor: Colors.black,
                                               side: const BorderSide(color: Colors.black, width: 1.5),

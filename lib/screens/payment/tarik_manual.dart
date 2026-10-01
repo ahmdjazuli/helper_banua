@@ -1,9 +1,7 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:flutter/services.dart'; 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:http/http.dart' as http;
 import '../../widgets/background.dart';
 import '../../widgets/format_angka.dart';
 
@@ -17,13 +15,10 @@ class TarikSaldoScreen extends StatefulWidget {
 class _TarikSaldoScreenState extends State<TarikSaldoScreen> {
   final TextEditingController _amountController = TextEditingController();
   final TextEditingController _accountNumberController = TextEditingController();
-
+  
   String _selectedBank = 'Bank BCA';
   int? _selectedNominal;
   bool _isLoading = false;
-
-  // GANTI DENGAN XENDIT SECRET KEY ANDA
-  static const String _xenditSecretKey = 'xnd_development_20ELPVmtJGJv9cIG58zeVfWJv8WYJkGM6IQmpaYSV5FYnjapyDqqbGM78qUPdYL'; 
 
   final List<String> _bankList = [
     'Bank BCA',
@@ -45,33 +40,11 @@ class _TarikSaldoScreenState extends State<TarikSaldoScreen> {
     1000000,
   ];
 
-  String _getBankCode(String bankName) {
-    switch (bankName) {
-      case 'Bank BCA':
-        return 'BCA';
-      case 'Bank Mandiri':
-        return 'MANDIRI';
-      case 'Bank BNI':
-        return 'BNI';
-      case 'Bank BRI':
-        return 'BRI';
-      case 'GoPay':
-        return 'GOPAY';
-      case 'OVO':
-        return 'OVO';
-      case 'DANA':
-        return 'DANA';
-      case 'ShopeePay':
-        return 'SHOPEEPAY';
-      default:
-        return 'BCA';
-    }
-  }
-
   @override
   void initState() {
     super.initState();
     _amountController.addListener(() {
+      // Hilangkan pemisah titik untuk membaca nilai int
       final String cleanText = _amountController.text.replaceAll('.', '').trim();
       final val = int.tryParse(cleanText);
       if (val != _selectedNominal) {
@@ -92,12 +65,13 @@ class _TarikSaldoScreenState extends State<TarikSaldoScreen> {
   void _selectQuickNominal(int nominal) {
     setState(() {
       _selectedNominal = nominal;
+      // Format manual saat tombol cepat ditekan
       _amountController.text = _formatCurrency(nominal);
     });
   }
 
-  // 1. Validasi Awal Form Penarikan
-  void _validateAndPromptPin(num currentBalance) {
+  void _processTarikSaldo(num currentBalance) async {
+    // Hapus tanda titik sebelum dikonversi ke angka
     final String rawAmountText = _amountController.text.replaceAll('.', '').trim();
     final String accountNumber = _accountNumberController.text.trim();
 
@@ -122,108 +96,6 @@ class _TarikSaldoScreenState extends State<TarikSaldoScreen> {
       return;
     }
 
-    // Jika form valid, tampilkan Dialog PIN
-    _showPinDialog(currentBalance, amount);
-  }
-
-  // 2. Dialog Input 6 Digit PIN
-  void _showPinDialog(num currentBalance, num amount) {
-    final List<TextEditingController> pinControllers = List.generate(6, (_) => TextEditingController());
-    final List<FocusNode> focusNodes = List.generate(6, (_) => FocusNode());
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text(
-            'Konfirmasi PIN',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Masukkan 6 digit PIN keamanan transaksi Anda.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 12, color: Colors.grey),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: List.generate(6, (index) {
-                  return SizedBox(
-                    width: 36,
-                    height: 46,
-                    child: TextField(
-                      controller: pinControllers[index],
-                      focusNode: focusNodes[index],
-                      keyboardType: TextInputType.number,
-                      textAlign: TextAlign.center,
-                      obscureText: true,
-                      maxLength: 1,
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      decoration: InputDecoration(
-                        counterText: '',
-                        filled: true,
-                        fillColor: Colors.grey.shade100,
-                        contentPadding: EdgeInsets.zero,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: BorderSide(color: Colors.grey.shade300),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: Color(0xFFFFCB05), width: 2),
-                        ),
-                      ),
-                      onChanged: (value) {
-                        if (value.isNotEmpty && index < 5) {
-                          focusNodes[index + 1].requestFocus();
-                        } else if (value.isEmpty && index > 0) {
-                          focusNodes[index - 1].requestFocus();
-                        }
-                      },
-                    ),
-                  );
-                }),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('BATAL', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.black,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              onPressed: () {
-                final String enteredPin = pinControllers.map((c) => c.text).join();
-                if (enteredPin.length < 6) {
-                  _showSnackBar('Harap masukkan 6 digit PIN secara lengkap', isError: true);
-                  return;
-                }
-
-                Navigator.pop(context); // Tutup Dialog PIN
-                _verifyAndProcessTarik(enteredPin, currentBalance, amount);
-              },
-              child: const Text('KONFIRMASI', style: TextStyle(fontWeight: FontWeight.bold)),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  // 3. Verifikasi PIN dengan Firestore & Eksekusi Disbursement Xendit
-  Future<void> _verifyAndProcessTarik(String enteredPin, num currentBalance, num amount) async {
     setState(() {
       _isLoading = true;
     });
@@ -236,82 +108,26 @@ class _TarikSaldoScreenState extends State<TarikSaldoScreen> {
       }
 
       final String currentUid = user.uid;
-
-      // Cek PIN di Firestore
-      final userDoc = await FirebaseFirestore.instance.collection('users').doc(currentUid).get();
-      if (!userDoc.exists || !userDoc.data()!.containsKey('pin') || userDoc.data()!['pin'].toString().isEmpty) {
-        _showSnackBar('Anda belum mengatur PIN transaksi. Silakan atur PIN terlebih dahulu.', isError: true);
-        return;
-      }
-
-      final String savedPin = userDoc.data()!['pin'].toString();
-      if (enteredPin != savedPin) {
-        _showSnackBar('PIN yang Anda masukkan salah!', isError: true);
-        return;
-      }
-
-      // Jika PIN Benar, Eksekusi Xendit Disbursement
-      final String accountNumber = _accountNumberController.text.trim();
       final String transactionId = 'WD-${DateTime.now().millisecondsSinceEpoch}';
-      final String basicAuth = 'Basic ${base64Encode(utf8.encode('$_xenditSecretKey:'))}';
 
-      final response = await http.post(
-        Uri.parse('https://api.xendit.co/disbursements'),
-        headers: {
-          'Authorization': basicAuth,
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'external_id': transactionId,
-          'amount': amount,
-          'bank_code': _getBankCode(_selectedBank),
-          'account_holder_name': user.displayName ?? 'Pengguna Helper Banua',
-          'account_number': accountNumber,
-          'description': 'Penarikan Saldo Helper Banua ke $_selectedBank',
-        }),
-      );
+      await FirebaseFirestore.instance.collection('transactions').doc(transactionId).set({
+        'transactionId': transactionId,
+        'userId': currentUid,
+        'type': 'WITHDRAW',
+        'amount': amount,
+        'status': 'PENDING',
+        'bankName': _selectedBank,
+        'accountNumber': accountNumber,
+        'description': 'Penarikan Saldo ke $_selectedBank ($accountNumber)',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
 
-      final responseData = jsonDecode(response.body);
+      if (!mounted) return;
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        final String xenditStatus = responseData['status'] ?? 'PENDING';
-        
-        String finalStatus = 'SUCCESS';
-        if (xenditStatus == 'PENDING') {
-          finalStatus = 'PENDING';
-        } else if (xenditStatus == 'FAILED') {
-          finalStatus = 'FAILED';
-        }
-
-        // Catat Transaksi
-        await FirebaseFirestore.instance.collection('transactions').doc(transactionId).set({
-          'transactionId': transactionId,
-          'userId': currentUid,
-          'type': 'WITHDRAW',
-          'amount': amount,
-          'status': finalStatus,
-          'bankName': _selectedBank,
-          'accountNumber': accountNumber,
-          'xenditDisbursementId': responseData['id'],
-          'description': 'Penarikan Saldo ke $_selectedBank ($accountNumber)',
-          'createdAt': FieldValue.serverTimestamp(),
-        });
-
-        // Potong Saldo
-        await FirebaseFirestore.instance.collection('users').doc(currentUid).update({
-          'balance': FieldValue.increment(-amount),
-        });
-
-        if (!mounted) return;
-
-        _showSnackBar('Penarikan saldo sebesar Rp ${_formatCurrency(amount)} berhasil diproses!');
-        Navigator.pop(context);
-      } else {
-        final String errorMessage = responseData['message'] ?? 'Gagal memproses pencairan via Xendit.';
-        _showSnackBar('Gagal: $errorMessage', isError: true);
-      }
+      _showSnackBar('Permintaan penarikan saldo berhasil diajukan!');
+      Navigator.pop(context);
     } catch (e) {
-      _showSnackBar('Terjadi kesalahan: $e', isError: true);
+      _showSnackBar('Gagal mengajukan penarikan: $e', isError: true);
     } finally {
       if (mounted) {
         setState(() {
@@ -546,7 +362,7 @@ class _TarikSaldoScreenState extends State<TarikSaldoScreen> {
 
                           const SizedBox(height: 20),
 
-                          // INPUT MANUAL NOMINAL PENARIKAN
+                          // INPUT MANUAL NOMINAL PENARIKAN (BERFORMAT)
                           const Text(
                             'Atau Masukkan Nominal Lain (Rp)',
                             style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black),
@@ -557,7 +373,7 @@ class _TarikSaldoScreenState extends State<TarikSaldoScreen> {
                             keyboardType: TextInputType.number,
                             inputFormatters: [
                               FilteringTextInputFormatter.digitsOnly,
-                              CurrencyInputFormatter(),
+                              CurrencyInputFormatter(), // Terapkan Formatter Angka di sini
                             ],
                             decoration: InputDecoration(
                               hintText: 'Contoh: 50.000',
@@ -582,7 +398,7 @@ class _TarikSaldoScreenState extends State<TarikSaldoScreen> {
                             width: double.infinity,
                             height: 48,
                             child: ElevatedButton(
-                              onPressed: _isLoading ? null : () => _validateAndPromptPin(currentBalance),
+                              onPressed: _isLoading ? null : () => _processTarikSaldo(currentBalance),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.black,
                                 foregroundColor: Colors.white,

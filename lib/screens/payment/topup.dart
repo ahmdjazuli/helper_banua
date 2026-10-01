@@ -1,9 +1,11 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../widgets/background.dart';
+import '../../widgets/format_angka.dart';
 import 'payment_webview.dart';
 
 class TopUpScreen extends StatefulWidget {
@@ -26,6 +28,21 @@ class _TopUpScreenState extends State<TopUpScreen> {
       'xnd_development_20ELPVmtJGJv9cIG58zeVfWJv8WYJkGM6IQmpaYSV5FYnjapyDqqbGM78qUPdYL';
 
   @override
+  void initState() {
+    super.initState();
+    _amountController.addListener(() {
+      // Hilangkan pemisah titik untuk membaca nilai int asli
+      final String cleanText = _amountController.text.replaceAll('.', '').trim();
+      final val = int.tryParse(cleanText);
+      if (val != _selectedNominal) {
+        setState(() {
+          _selectedNominal = val;
+        });
+      }
+    });
+  }
+
+  @override
   void dispose() {
     _amountController.dispose();
     super.dispose();
@@ -34,18 +51,21 @@ class _TopUpScreenState extends State<TopUpScreen> {
   void _selectNominal(int nominal) {
     setState(() {
       _selectedNominal = nominal;
-      _amountController.text = nominal.toString();
+      // Format teks controller dengan pemisah titik
+      _amountController.text = _formatCurrency(nominal);
     });
   }
 
   Future<void> _processTopUp() async {
-    final String amountText = _amountController.text.trim();
-    if (amountText.isEmpty) {
+    // Hapus tanda titik sebelum dikonversi ke angka integer
+    final String rawAmountText = _amountController.text.replaceAll('.', '').trim();
+    
+    if (rawAmountText.isEmpty) {
       _showSnackBar('Masukkan nominal top up terlebih dahulu');
       return;
     }
 
-    final int? amount = int.tryParse(amountText);
+    final int? amount = int.tryParse(rawAmountText);
     if (amount == null || amount < 10000) {
       _showSnackBar('Minimal top up adalah Rp 10.000');
       return;
@@ -84,19 +104,6 @@ class _TopUpScreenState extends State<TopUpScreen> {
           },
         }),
       );
-      
-      // Contoh URL Lewat Backend/Firebase
-      // final response = await http.post(
-      //   Uri.parse('https://us-central1-helperbanua.cloudfunctions.net/createInvoice'), 
-      //   headers: {
-      //     'Content-Type': 'application/json',
-      //   },
-      //   body: jsonEncode({
-      //     'userId': user.uid,
-      //     'amount': amount,
-      //     'email': user.email ?? 'user@helperbanua.com',
-      //   }),
-      // );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = jsonDecode(response.body);
@@ -224,6 +231,10 @@ class _TopUpScreenState extends State<TopUpScreen> {
                             TextField(
                               controller: _amountController,
                               keyboardType: TextInputType.number,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.digitsOnly,
+                                CurrencyInputFormatter(), // Terapkan Formatter Angka di sini
+                              ],
                               style: const TextStyle(
                                 fontSize: 24,
                                 fontWeight: FontWeight.w900,
@@ -240,11 +251,6 @@ class _TopUpScreenState extends State<TopUpScreen> {
                                 hintStyle: TextStyle(color: Colors.grey.shade400),
                                 border: InputBorder.none,
                               ),
-                              onChanged: (value) {
-                                setState(() {
-                                  _selectedNominal = int.tryParse(value);
-                                });
-                              },
                             ),
                           ],
                         ),

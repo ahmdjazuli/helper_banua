@@ -5,7 +5,7 @@ class ChangelogDialog {
   static const String _currentAppVersion = '1.0.4'; 
   
   static final List<String> _changelogList = [
-    'Saldo Dompet > Top Up minim 10k maks 2jt, Riwayat Transaksi, ',
+    'Saldo Dompet > Top Up, Tarik + Pin, Riwayat Transaksi',
   ];
 
   static Future<void> checkAndShow(BuildContext context) async {
