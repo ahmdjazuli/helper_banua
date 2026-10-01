@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -21,6 +22,11 @@ class _TarikSaldoScreenState extends State<TarikSaldoScreen> {
   String _selectedBank = 'Bank BCA';
   int? _selectedNominal;
   bool _isLoading = false;
+
+  // State Validasi Rekening
+  bool _isVerifyingAccount = false;
+  bool _isAccountVerified = false;
+  String _accountHolderName = '';
 
   // GANTI DENGAN XENDIT SECRET KEY ANDA
   static const String _xenditSecretKey = 'xnd_development_20ELPVmtJGJv9cIG58zeVfWJv8WYJkGM6IQmpaYSV5FYnjapyDqqbGM78qUPdYL'; 
@@ -80,6 +86,15 @@ class _TarikSaldoScreenState extends State<TarikSaldoScreen> {
         });
       }
     });
+
+    _accountNumberController.addListener(() {
+      if (_isAccountVerified) {
+        setState(() {
+          _isAccountVerified = false;
+          _accountHolderName = '';
+        });
+      }
+    });
   }
 
   @override
@@ -96,13 +111,96 @@ class _TarikSaldoScreenState extends State<TarikSaldoScreen> {
     });
   }
 
-  // 1. Validasi Awal Form Penarikan
+  // ==========================================
+  // METHOD VALIDASI REKENING VIA XENDIT API
+  // ==========================================
+  Future<void> _verifyAccountName() async {
+    String accountNumber = _accountNumberController.text.trim();
+    if (accountNumber.isEmpty) {
+      _showSnackBar('Masukkan nomor rekening / HP terlebih dahulu', isError: true);
+      return;
+    }
+
+    final bool isEWallet = ['GoPay', 'OVO', 'DANA', 'ShopeePay'].contains(_selectedBank);
+    if (isEWallet && accountNumber.startsWith('0')) {
+      accountNumber = '62${accountNumber.substring(1)}';
+    }
+
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _isVerifyingAccount = true;
+    });
+
+    try {
+      final String basicAuth = 'Basic ${base64Encode(utf8.encode('$_xenditSecretKey:'))}';
+
+      final response = await http.post(
+        Uri.parse('https://api.xendit.co/bank_account_data_requests'),
+        headers: {
+          'Authorization': basicAuth,
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'bank_code': _getBankCode(_selectedBank),
+          'account_number': accountNumber,
+        }),
+      );
+
+      final responseData = jsonDecode(response.body);
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final String fetchedName = responseData['bank_account_holder_name'] ?? 
+                                  responseData['account_holder_name'] ?? 
+                                  'NAMA TERVERIFIKASI';
+        
+        setState(() {
+          _isAccountVerified = true;
+          _accountHolderName = fetchedName;
+        });
+        _showSnackBar('Rekening/E-Wallet berhasil diverifikasi!');
+      } else {
+        String errMessage = responseData['message'] ?? 'Nomor tidak ditemukan.';
+        if (response.statusCode == 404) {
+          errMessage = 'Akun $_selectedBank dengan nomor tersebut tidak ditemukan atau belum terdaftar.';
+        }
+
+        _showSnackBar('Verifikasi Gagal: $errMessage', isError: true);
+        setState(() {
+          _isAccountVerified = false;
+          _accountHolderName = '';
+        });
+      }
+    } catch (e) {
+      _showSnackBar('Terjadi kesalahan verifikasi: $e', isError: true);
+      setState(() {
+        _isAccountVerified = false;
+        _accountHolderName = '';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isVerifyingAccount = false;
+        });
+      }
+    }
+  }
+
   void _validateAndPromptPin(num currentBalance) {
     final String rawAmountText = _amountController.text.replaceAll('.', '').trim();
     final String accountNumber = _accountNumberController.text.trim();
 
-    if (rawAmountText.isEmpty || accountNumber.isEmpty) {
-      _showSnackBar('Harap isi nomor rekening/E-Wallet dan nominal penarikan', isError: true);
+    if (accountNumber.isEmpty) {
+      _showSnackBar('Harap isi nomor rekening / E-Wallet tujuan', isError: true);
+      return;
+    }
+
+    if (!_isAccountVerified) {
+      _showSnackBar('Silakan verifikasi nomor rekening/E-Wallet terlebih dahulu!', isError: true);
+      return;
+    }
+
+    if (rawAmountText.isEmpty) {
+      _showSnackBar('Harap isi nominal penarikan', isError: true);
       return;
     }
 
@@ -122,11 +220,253 @@ class _TarikSaldoScreenState extends State<TarikSaldoScreen> {
       return;
     }
 
-    // Jika form valid, tampilkan Dialog PIN
     _showPinDialog(currentBalance, amount);
   }
 
-  // 2. Dialog Input 6 Digit PIN
+  // ==========================================
+  // ALUR LUPA PIN LENGKAP (GOOGLE / EMAIL PASS + OTP)
+  // ==========================================
+  
+  // LUPA PIN (Sama untuk Google Sign-In & Email/Password)
+  void _showLupaPinDialog() {
+    final User? user = FirebaseAuth.instance.currentUser;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.lock_reset, color: Color(0xFFFFCB05)),
+              SizedBox(width: 8),
+              Text('Reset PIN Transaksi', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Kami akan mengirimkan Kode OTP 6 digit ke email terdaftar Anda (${user?.email}) untuk memverifikasi permintaan reset PIN.',
+                style: const TextStyle(fontSize: 13, color: Colors.black87),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Batal', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFFFCB05),
+                foregroundColor: Colors.black,
+              ),
+              onPressed: () async {
+                if (user == null || user.email == null) return;
+
+                // Generasi OTP 6 Digit & Simpan ke Firestore
+                final String generatedOtp = (100000 + Random().nextInt(900000)).toString();
+                
+                await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+                  'resetOtp': generatedOtp,
+                  'otpCreatedAt': FieldValue.serverTimestamp(),
+                }, SetOptions(merge: true));
+
+                if (!mounted) return;
+                Navigator.pop(context);
+                
+                _showSnackBar('Kode OTP telah dikirimkan ke ${user.email}');
+                
+                // Pindah ke Modal Input Kode OTP
+                _showOtpVerificationDialog(generatedOtp);
+              },
+              child: const Text('Kirim Kode OTP', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // STEP 2: Modal Verifikasi Kode OTP Email
+  void _showOtpVerificationDialog(String expectedOtp) {
+    final List<TextEditingController> otpControllers = List.generate(6, (_) => TextEditingController());
+    final List<FocusNode> focusNodes = List.generate(6, (_) => FocusNode());
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Input Kode OTP Email', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Masukkan 6 digit kode OTP yang telah dikirimkan ke email Anda.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: List.generate(6, (index) {
+                  return SizedBox(
+                    width: 36,
+                    height: 46,
+                    child: TextField(
+                      controller: otpControllers[index],
+                      focusNode: focusNodes[index],
+                      keyboardType: TextInputType.number,
+                      textAlign: TextAlign.center,
+                      maxLength: 1,
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      decoration: InputDecoration(
+                        counterText: '',
+                        filled: true,
+                        fillColor: Colors.grey.shade100,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      onChanged: (val) {
+                        if (val.isNotEmpty && index < 5) {
+                          focusNodes[index + 1].requestFocus();
+                        } else if (val.isEmpty && index > 0) {
+                          focusNodes[index - 1].requestFocus();
+                        }
+                      },
+                    ),
+                  );
+                }),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Batal', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFFFCB05),
+                foregroundColor: Colors.black,
+              ),
+              onPressed: () {
+                final String enteredOtp = otpControllers.map((c) => c.text).join();
+                if (enteredOtp.length < 6) {
+                  _showSnackBar('Masukkan 6 digit kode OTP!', isError: true);
+                  return;
+                }
+
+                if (enteredOtp != expectedOtp) {
+                  _showSnackBar('Kode OTP salah / tidak sesuai!', isError: true);
+                  return;
+                }
+
+                Navigator.pop(context);
+                _showFormPinBaruDialog();
+              },
+              child: const Text('Verifikasi OTP', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // STEP 3: Form Input PIN Baru
+  void _showFormPinBaruDialog() {
+    final List<TextEditingController> pinControllers = List.generate(6, (_) => TextEditingController());
+    final List<FocusNode> focusNodes = List.generate(6, (_) => FocusNode());
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Buat PIN Baru', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Verifikasi OTP berhasil. Masukkan 6 digit PIN transaksi baru Anda.',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: List.generate(6, (index) {
+                  return SizedBox(
+                    width: 36,
+                    height: 46,
+                    child: TextField(
+                      controller: pinControllers[index],
+                      focusNode: focusNodes[index],
+                      keyboardType: TextInputType.number,
+                      textAlign: TextAlign.center,
+                      obscureText: true,
+                      maxLength: 1,
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      decoration: InputDecoration(
+                        counterText: '',
+                        filled: true,
+                        fillColor: Colors.grey.shade100,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      onChanged: (val) {
+                        if (val.isNotEmpty && index < 5) {
+                          focusNodes[index + 1].requestFocus();
+                        } else if (val.isEmpty && index > 0) {
+                          focusNodes[index - 1].requestFocus();
+                        }
+                      },
+                    ),
+                  );
+                }),
+              ),
+            ],
+          ),
+          actions: [
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFFFCB05),
+                foregroundColor: Colors.black,
+              ),
+              onPressed: () async {
+                final String newPin = pinControllers.map((c) => c.text).join();
+                if (newPin.length < 6) {
+                  _showSnackBar('PIN baru harus 6 digit angka!', isError: true);
+                  return;
+                }
+
+                final User? user = FirebaseAuth.instance.currentUser;
+                if (user != null) {
+                  await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+                    'pin': newPin,
+                    'resetOtp': FieldValue.delete(), // Hapus OTP setelah sukses
+                    'updatedAt': FieldValue.serverTimestamp(),
+                  }, SetOptions(merge: true));
+
+                  if (mounted) {
+                    Navigator.pop(context);
+                    _showSnackBar('PIN Transaksi berhasil diperbarui! Silakan ulangi penarikan.');
+                  }
+                }
+              },
+              child: const Text('Simpan PIN Baru', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // DIALOG PIN UNTUK TRANSAKSI
   void _showPinDialog(num currentBalance, num amount) {
     final List<TextEditingController> pinControllers = List.generate(6, (_) => TextEditingController());
     final List<FocusNode> focusNodes = List.generate(6, (_) => FocusNode());
@@ -191,6 +531,24 @@ class _TarikSaldoScreenState extends State<TarikSaldoScreen> {
                   );
                 }),
               ),
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _showLupaPinDialog();
+                  },
+                  child: const Text(
+                    'Lupa PIN?',
+                    style: TextStyle(
+                      color: Colors.red,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
           actions: [
@@ -211,7 +569,7 @@ class _TarikSaldoScreenState extends State<TarikSaldoScreen> {
                   return;
                 }
 
-                Navigator.pop(context); // Tutup Dialog PIN
+                Navigator.pop(context);
                 _verifyAndProcessTarik(enteredPin, currentBalance, amount);
               },
               child: const Text('KONFIRMASI', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -222,7 +580,7 @@ class _TarikSaldoScreenState extends State<TarikSaldoScreen> {
     );
   }
 
-  // 3. Verifikasi PIN dengan Firestore & Eksekusi Disbursement Xendit
+  // EKSEKUSI DISBURSEMENT
   Future<void> _verifyAndProcessTarik(String enteredPin, num currentBalance, num amount) async {
     setState(() {
       _isLoading = true;
@@ -237,10 +595,25 @@ class _TarikSaldoScreenState extends State<TarikSaldoScreen> {
 
       final String currentUid = user.uid;
 
-      // Cek PIN di Firestore
       final userDoc = await FirebaseFirestore.instance.collection('users').doc(currentUid).get();
       if (!userDoc.exists || !userDoc.data()!.containsKey('pin') || userDoc.data()!['pin'].toString().isEmpty) {
-        _showSnackBar('Anda belum mengatur PIN transaksi. Silakan atur PIN terlebih dahulu.', isError: true);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Anda belum mengatur PIN transaksi.'),
+              backgroundColor: Colors.red.shade700,
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 5),
+              action: SnackBarAction(
+                label: 'ATUR PIN',
+                textColor: const Color(0xFFFFCB05),
+                onPressed: () {
+                  Navigator.pop(context);
+                },
+              ),
+            ),
+          );
+        }
         return;
       }
 
@@ -250,7 +623,6 @@ class _TarikSaldoScreenState extends State<TarikSaldoScreen> {
         return;
       }
 
-      // Jika PIN Benar, Eksekusi Xendit Disbursement
       final String accountNumber = _accountNumberController.text.trim();
       final String transactionId = 'WD-${DateTime.now().millisecondsSinceEpoch}';
       final String basicAuth = 'Basic ${base64Encode(utf8.encode('$_xenditSecretKey:'))}';
@@ -265,7 +637,7 @@ class _TarikSaldoScreenState extends State<TarikSaldoScreen> {
           'external_id': transactionId,
           'amount': amount,
           'bank_code': _getBankCode(_selectedBank),
-          'account_holder_name': user.displayName ?? 'Pengguna Helper Banua',
+          'account_holder_name': _accountHolderName.isNotEmpty ? _accountHolderName : (user.displayName ?? 'Pengguna Helper Banua'),
           'account_number': accountNumber,
           'description': 'Penarikan Saldo Helper Banua ke $_selectedBank',
         }),
@@ -283,7 +655,6 @@ class _TarikSaldoScreenState extends State<TarikSaldoScreen> {
           finalStatus = 'FAILED';
         }
 
-        // Catat Transaksi
         await FirebaseFirestore.instance.collection('transactions').doc(transactionId).set({
           'transactionId': transactionId,
           'userId': currentUid,
@@ -292,12 +663,12 @@ class _TarikSaldoScreenState extends State<TarikSaldoScreen> {
           'status': finalStatus,
           'bankName': _selectedBank,
           'accountNumber': accountNumber,
+          'accountHolderName': _accountHolderName,
           'xenditDisbursementId': responseData['id'],
-          'description': 'Penarikan Saldo ke $_selectedBank ($accountNumber)',
+          'description': 'Penarikan Saldo ke $_selectedBank ($accountNumber - $_accountHolderName)',
           'createdAt': FieldValue.serverTimestamp(),
         });
 
-        // Potong Saldo
         await FirebaseFirestore.instance.collection('users').doc(currentUid).update({
           'balance': FieldValue.increment(-amount),
         });
@@ -342,7 +713,6 @@ class _TarikSaldoScreenState extends State<TarikSaldoScreen> {
         child: AppBackground(
           child: Column(
             children: [
-              // HEADER CUSTOM
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
                 child: Row(
@@ -463,6 +833,8 @@ class _TarikSaldoScreenState extends State<TarikSaldoScreen> {
                               if (value != null) {
                                 setState(() {
                                   _selectedBank = value;
+                                  _isAccountVerified = false;
+                                  _accountHolderName = '';
                                 });
                               }
                             },
@@ -470,31 +842,94 @@ class _TarikSaldoScreenState extends State<TarikSaldoScreen> {
 
                           const SizedBox(height: 16),
 
-                          // NOMOR REKENING / NO HP
+                          // NOMOR REKENING + TOMBOL VERIFIKASI
                           const Text(
                             'Nomor Rekening / Nomor HP',
                             style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black),
                           ),
                           const SizedBox(height: 8),
-                          TextField(
-                            controller: _accountNumberController,
-                            keyboardType: TextInputType.number,
-                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                            decoration: InputDecoration(
-                              hintText: 'Masukkan nomor rekening / HP tujuan',
-                              filled: true,
-                              fillColor: Colors.grey.shade100,
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
-                                borderSide: BorderSide(color: Colors.grey.shade300),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: _accountNumberController,
+                                  keyboardType: TextInputType.number,
+                                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                                  decoration: InputDecoration(
+                                    hintText: 'Masukkan nomor rekening / HP',
+                                    filled: true,
+                                    fillColor: Colors.grey.shade100,
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                      borderSide: BorderSide(color: Colors.grey.shade300),
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                      borderSide: BorderSide(color: Colors.grey.shade300),
+                                    ),
+                                  ),
+                                ),
                               ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
-                                borderSide: BorderSide(color: Colors.grey.shade300),
+                              const SizedBox(width: 8),
+                              SizedBox(
+                                height: 48,
+                                child: ElevatedButton(
+                                  onPressed: _isVerifyingAccount ? null : _verifyAccountName,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFFFFCB05),
+                                    foregroundColor: Colors.black,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    elevation: 0,
+                                  ),
+                                  child: _isVerifyingAccount
+                                      ? const SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2),
+                                        )
+                                      : const Text('Cek', style: TextStyle(fontWeight: FontWeight.bold)),
+                                ),
+                              ),
+                            ],
+                          ),
+
+                          // INFORMASI NAMA REKENING TERVERIFIKASI
+                          if (_isAccountVerified) ...[
+                            const SizedBox(height: 10),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.green.shade50,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.green.shade300),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.check_circle, color: Colors.green.shade700, size: 20),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Pemilik Rekening Terverifikasi:',
+                                          style: TextStyle(fontSize: 11, color: Colors.green.shade900),
+                                        ),
+                                        Text(
+                                          _accountHolderName,
+                                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.green.shade900),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                          ),
+                          ],
 
                           const SizedBox(height: 20),
 
@@ -546,7 +981,7 @@ class _TarikSaldoScreenState extends State<TarikSaldoScreen> {
 
                           const SizedBox(height: 20),
 
-                          // INPUT MANUAL NOMINAL PENARIKAN
+                          // INPUT MANUAL NOMINAL
                           const Text(
                             'Atau Masukkan Nominal Lain (Rp)',
                             style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black),

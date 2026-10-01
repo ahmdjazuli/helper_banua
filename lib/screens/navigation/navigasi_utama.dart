@@ -5,6 +5,7 @@ import '../order/pilih_jasa.dart';
 import '../../models/order_model.dart';
 import '../profile/akun.dart'; 
 import '../profile/bantuan.dart';
+import '../../services/fcm_service.dart';
 
 class MainNavigationScreen extends StatefulWidget {
   final int initialIndex;
@@ -29,6 +30,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   void initState() {
     super.initState();
     _selectedIndex = widget.initialIndex;
+
+    // Inisialisasi FCM & simpan token user ke Firestore begitu masuk navigasi utama
+    FCMService.initFCM();
   }
 
   @override

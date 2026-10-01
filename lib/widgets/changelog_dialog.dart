@@ -5,7 +5,12 @@ class ChangelogDialog {
   static const String _currentAppVersion = '1.0.4'; 
   
   static final List<String> _changelogList = [
-    'Saldo Dompet > Top Up, Tarik + Pin, Riwayat Transaksi',
+    'Saldo Dompet > Top Up, Tarik, Riwayat Transaksi, Pin Transaksi',
+    'Tarik Belum/Sudah Mengatur Pin Transaksi',
+    'Lupa Pin Transaksi > Verifikasi dgn Akun Google/Pengguna Email dgn Mengisi Password akun + kode OTP',
+    'Validasi Rekening / Nomor HP',
+    'Token FCM',
+    'Hapus Akun harus masukkan Pin Transaksi dulu',
   ];
 
   static Future<void> checkAndShow(BuildContext context) async {
