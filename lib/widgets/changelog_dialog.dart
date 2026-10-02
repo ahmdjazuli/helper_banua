@@ -9,7 +9,7 @@ class ChangelogDialog {
     'Tarik Belum/Sudah Mengatur Pin Transaksi',
     'Lupa Pin Transaksi > Verifikasi dgn Akun Google/Pengguna Email dgn Mengisi Password akun + kode OTP',
     'Validasi Rekening / Nomor HP',
-    'Token FCM',
+    'Token FCM untuk notifikasi',
     'Hapus Akun harus masukkan Pin Transaksi dulu',
   ];
 
