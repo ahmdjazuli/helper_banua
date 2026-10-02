@@ -182,7 +182,7 @@ class DomeShadowPainter extends CustomPainter {
 
     for (int i = 0; i < blurOffsets.length; i++) {
       Paint softEdgePaint = Paint()
-        ..color = Colors.black.withOpacity(blurOpacities[i])
+        ..color = Colors.black.withValues(alpha: blurOpacities[i])
         ..style = PaintingStyle.fill
         ..maskFilter = MaskFilter.blur(BlurStyle.normal, blurRadii[i]);
 

@@ -153,6 +153,7 @@ class _TarikSaldoScreenState extends State<TarikSaldoScreen> {
                                   responseData['account_holder_name'] ?? 
                                   'NAMA TERVERIFIKASI';
         
+        if (!mounted) return;
         setState(() {
           _isAccountVerified = true;
           _accountHolderName = fetchedName;
@@ -164,6 +165,7 @@ class _TarikSaldoScreenState extends State<TarikSaldoScreen> {
           errMessage = 'Akun $_selectedBank dengan nomor tersebut tidak ditemukan atau belum terdaftar.';
         }
 
+        if (!mounted) return;
         _showSnackBar('Verifikasi Gagal: $errMessage', isError: true);
         setState(() {
           _isAccountVerified = false;
@@ -171,6 +173,7 @@ class _TarikSaldoScreenState extends State<TarikSaldoScreen> {
         });
       }
     } catch (e) {
+      if (!mounted) return;
       _showSnackBar('Terjadi kesalahan verifikasi: $e', isError: true);
       setState(() {
         _isAccountVerified = false;
@@ -233,7 +236,7 @@ class _TarikSaldoScreenState extends State<TarikSaldoScreen> {
 
     showDialog(
       context: context,
-      builder: (context) {
+      builder: (dialogContext) {
         return AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: const Row(
@@ -255,7 +258,7 @@ class _TarikSaldoScreenState extends State<TarikSaldoScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => Navigator.pop(dialogContext),
               child: const Text('Batal', style: TextStyle(color: Colors.grey)),
             ),
             ElevatedButton(
@@ -274,8 +277,8 @@ class _TarikSaldoScreenState extends State<TarikSaldoScreen> {
                   'otpCreatedAt': FieldValue.serverTimestamp(),
                 }, SetOptions(merge: true));
 
-                if (!mounted) return;
-                Navigator.pop(context);
+                if (!dialogContext.mounted) return;
+                Navigator.pop(dialogContext);
                 
                 _showSnackBar('Kode OTP telah dikirimkan ke ${user.email}');
                 
@@ -298,7 +301,7 @@ class _TarikSaldoScreenState extends State<TarikSaldoScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) {
+      builder: (dialogContext) {
         return AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: const Text('Input Kode OTP Email', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
@@ -346,7 +349,7 @@ class _TarikSaldoScreenState extends State<TarikSaldoScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => Navigator.pop(dialogContext),
               child: const Text('Batal', style: TextStyle(color: Colors.grey)),
             ),
             ElevatedButton(
@@ -366,7 +369,7 @@ class _TarikSaldoScreenState extends State<TarikSaldoScreen> {
                   return;
                 }
 
-                Navigator.pop(context);
+                Navigator.pop(dialogContext);
                 _showFormPinBaruDialog();
               },
               child: const Text('Verifikasi OTP', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -385,7 +388,7 @@ class _TarikSaldoScreenState extends State<TarikSaldoScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) {
+      builder: (dialogContext) {
         return AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: const Text('Buat PIN Baru', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
@@ -452,8 +455,10 @@ class _TarikSaldoScreenState extends State<TarikSaldoScreen> {
                     'updatedAt': FieldValue.serverTimestamp(),
                   }, SetOptions(merge: true));
 
+                  if (dialogContext.mounted) {
+                    Navigator.pop(dialogContext);
+                  }
                   if (mounted) {
-                    Navigator.pop(context);
                     _showSnackBar('PIN Transaksi berhasil diperbarui! Silakan ulangi penarikan.');
                   }
                 }
@@ -474,7 +479,7 @@ class _TarikSaldoScreenState extends State<TarikSaldoScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) {
+      builder: (dialogContext) {
         return AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: const Text(
@@ -536,7 +541,7 @@ class _TarikSaldoScreenState extends State<TarikSaldoScreen> {
                 alignment: Alignment.centerRight,
                 child: TextButton(
                   onPressed: () {
-                    Navigator.pop(context);
+                    Navigator.pop(dialogContext);
                     _showLupaPinDialog();
                   },
                   child: const Text(
@@ -553,7 +558,7 @@ class _TarikSaldoScreenState extends State<TarikSaldoScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => Navigator.pop(dialogContext),
               child: const Text('BATAL', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
             ),
             ElevatedButton(
@@ -569,7 +574,7 @@ class _TarikSaldoScreenState extends State<TarikSaldoScreen> {
                   return;
                 }
 
-                Navigator.pop(context);
+                Navigator.pop(dialogContext);
                 _verifyAndProcessTarik(enteredPin, currentBalance, amount);
               },
               child: const Text('KONFIRMASI', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -608,7 +613,9 @@ class _TarikSaldoScreenState extends State<TarikSaldoScreen> {
                 label: 'ATUR PIN',
                 textColor: const Color(0xFFFFCB05),
                 onPressed: () {
-                  Navigator.pop(context);
+                  if (mounted) {
+                    Navigator.pop(context);
+                  }
                 },
               ),
             ),
@@ -619,6 +626,7 @@ class _TarikSaldoScreenState extends State<TarikSaldoScreen> {
 
       final String savedPin = userDoc.data()!['pin'].toString();
       if (enteredPin != savedPin) {
+        if (!mounted) return;
         _showSnackBar('PIN yang Anda masukkan salah!', isError: true);
         return;
       }
@@ -679,9 +687,11 @@ class _TarikSaldoScreenState extends State<TarikSaldoScreen> {
         Navigator.pop(context);
       } else {
         final String errorMessage = responseData['message'] ?? 'Gagal memproses pencairan via Xendit.';
+        if (!mounted) return;
         _showSnackBar('Gagal: $errorMessage', isError: true);
       }
     } catch (e) {
+      if (!mounted) return;
       _showSnackBar('Terjadi kesalahan: $e', isError: true);
     } finally {
       if (mounted) {
@@ -809,7 +819,7 @@ class _TarikSaldoScreenState extends State<TarikSaldoScreen> {
                           ),
                           const SizedBox(height: 8),
                           DropdownButtonFormField<String>(
-                            value: _selectedBank,
+                            initialValue: _selectedBank,
                             decoration: InputDecoration(
                               filled: true,
                               fillColor: Colors.grey.shade100,

@@ -170,41 +170,39 @@ class _LayarKonfirmasiPembayaranState extends State<LayarKonfirmasiPembayaran> {
                   data: Theme.of(context).copyWith(
                     unselectedWidgetColor: Colors.black,
                   ),
-                  child: Column(
-                    children: [
-                      RadioListTile<String>(
-                        title: const Text(
-                          'Potong Saldo',
-                          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 13),
+                  child: RadioGroup<String>(
+                    groupValue: _metodePembayaran,
+                    onChanged: (val) {
+                      if (val != null) {
+                        setState(() {
+                          _metodePembayaran = val;
+                        });
+                      }
+                    },
+                    child: Column(
+                      children: const [
+                        RadioListTile<String>(
+                          title: Text(
+                            'Potong Saldo',
+                            style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 13),
+                          ),
+                          value: 'saldo',
+                          activeColor: Colors.black,
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
                         ),
-                        value: 'saldo',
-                        groupValue: _metodePembayaran,
-                        activeColor: Colors.black,
-                        contentPadding: EdgeInsets.zero,
-                        dense: true,
-                        onChanged: (val) {
-                          setState(() {
-                            _metodePembayaran = val!;
-                          });
-                        },
-                      ),
-                      RadioListTile<String>(
-                        title: const Text(
-                          'Metode Pembayaran Lain',
-                          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 13),
+                        RadioListTile<String>(
+                          title: Text(
+                            'Metode Pembayaran Lain',
+                            style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 13),
+                          ),
+                          value: 'lain',
+                          activeColor: Colors.black,
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
                         ),
-                        value: 'lain',
-                        groupValue: _metodePembayaran,
-                        activeColor: Colors.black,
-                        contentPadding: EdgeInsets.zero,
-                        dense: true,
-                        onChanged: (val) {
-                          setState(() {
-                            _metodePembayaran = val!;
-                          });
-                        },
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
 

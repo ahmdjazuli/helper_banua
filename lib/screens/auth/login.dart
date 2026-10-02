@@ -119,63 +119,38 @@ class _LoginScreenState extends State<LoginScreen> {
           );
         }
       } else if (e.code == 'wrong-password' || e.code == 'invalid-credential') {
-        bool isEmailExists = false;
-        try {
-          // Cek apakah email terdaftar di Firebase Auth
-          List<String> signInMethods = await FirebaseAuth.instance
-              .fetchSignInMethodsForEmail(emailInput);
-          if (signInMethods.isNotEmpty) {
-            isEmailExists = true;
-          }
-        } catch (_) {
-          isEmailExists = true;
-        }
+        // Increment counter password salah
+        _wrongPasswordCount++;
 
-        if (!isEmailExists) {
-          // Tampilkan pesan akun tidak ditemukan jika email memang belum terdaftar/sudah dihapus
+        if (_wrongPasswordCount >= _maxWrongAttempts) {
           if (mounted) {
             ScaffoldMessenger.of(context).hideCurrentSnackBar();
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                backgroundColor: Colors.red,
-                content: Text('Akun tidak ditemukan! Mohon periksa kembali email Anda.'),
-              ),
+
+            AuthDialogs.showTooManyWrongPasswordDialog(
+              context: context,
+              wrongPasswordCount: _wrongPasswordCount,
+              emailText: emailInput,
+              onResetSuccess: () {
+                setState(() {
+                  _wrongPasswordCount = 0;
+                });
+              },
             );
           }
         } else {
-          // Email ada tapi password salah
-          _wrongPasswordCount++;
+          int remaining = _maxWrongAttempts - _wrongPasswordCount;
+          if (mounted) {
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
 
-          if (_wrongPasswordCount >= _maxWrongAttempts) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).hideCurrentSnackBar();
-
-              AuthDialogs.showTooManyWrongPasswordDialog(
-                context: context,
-                wrongPasswordCount: _wrongPasswordCount,
-                emailText: emailInput,
-                onResetSuccess: () {
-                  setState(() {
-                    _wrongPasswordCount = 0;
-                  });
-                },
-              );
-            }
-          } else {
-            int remaining = _maxWrongAttempts - _wrongPasswordCount;
-            if (mounted) {
-              ScaffoldMessenger.of(context).hideCurrentSnackBar();
-
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  backgroundColor: Colors.red,
-                  content: Text(
-                    'Password salah! Sisa percobaan: $remaining.',
-                  ),
-                  duration: const Duration(seconds: 4),
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                backgroundColor: Colors.red,
+                content: Text(
+                  'Password salah atau email tidak sesuai! Sisa percobaan: $remaining.',
                 ),
-              );
-            }
+                duration: const Duration(seconds: 4),
+              ),
+            );
           }
         }
       } else if (e.code == 'invalid-email') {
@@ -623,7 +598,7 @@ class DomeShadowPainter extends CustomPainter {
 
     for (int i = 0; i < blurOffsets.length; i++) {
       Paint softEdgePaint = Paint()
-        ..color = Colors.black.withOpacity(blurOpacities[i])
+        ..color = Colors.black.withValues(alpha: blurOpacities[i])
         ..style = PaintingStyle.fill
         ..maskFilter = MaskFilter.blur(BlurStyle.normal, blurRadii[i]);
 

@@ -67,7 +67,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             color: Colors.white,
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.08),
+                color: Colors.black.withValues(alpha: 0.08),
                 blurRadius: 10,
                 offset: const Offset(0, -2),
               ),
@@ -154,7 +154,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.18),
+                  color: Colors.black.withValues(alpha: 0.18),
                   blurRadius: 8,
                   offset: const Offset(0, 3),
                 ),

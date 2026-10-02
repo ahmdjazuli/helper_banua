@@ -240,10 +240,10 @@ class _BuatOrderScreenState extends State<BuatOrderScreen> {
         'jenisJasa': _selectedSubJasa ?? widget.namaLayanan,
         'alamat': _alamatController.text,
         'deskripsi': _deskripsiController.text,
-        'waktuPenawaran': durasiMenit, // Simpan sebagai angka menit
+        'waktuPenawaran': durasiMenit,
         'fotoUrls': photoUrls,
-        'status': 'Proses Bidding', // STATUS MENJADI PROSES BIDDING
-        'hargaBidding': null, // null / 0 untuk menandakan belum ada tawaran dari mitra
+        'status': 'Proses Bidding',
+        'hargaBidding': null,
         'createdAt': FieldValue.serverTimestamp(),
         'expiredAt': Timestamp.fromDate(expiredAt),
       });
@@ -263,7 +263,6 @@ class _BuatOrderScreenState extends State<BuatOrderScreen> {
         ),
       );
     } catch (e) {
-      // Fallback jika offline/error
       if (!mounted) return;
       setState(() => _isLoading = false);
 
@@ -338,6 +337,7 @@ class _BuatOrderScreenState extends State<BuatOrderScreen> {
         setState(() => _fotoFiles[index] = File(pickedFile.path));
       }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal memilih gambar: $e')));
     }
   }
@@ -374,6 +374,7 @@ class _BuatOrderScreenState extends State<BuatOrderScreen> {
                     context,
                     MaterialPageRoute(builder: (context) => const SelectLocationScreen()),
                   );
+                  if (!mounted) return;
                   if (selectedLocation != null) {
                     setState(() => _alamatController.text = selectedLocation.toString());
                   }
@@ -388,8 +389,6 @@ class _BuatOrderScreenState extends State<BuatOrderScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final User? user = FirebaseAuth.instance.currentUser;
-
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
@@ -400,25 +399,19 @@ class _BuatOrderScreenState extends State<BuatOrderScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // 1. TOP HEADER
                     const HomeHeader(),
                     const SizedBox(height: 12),
-              
-                    // 2. HEADER BANNER
                     SizedBox(
                       width: double.infinity,
                       height: 90,
                       child: Stack(
                         children: [
-                          // Gambar Background Header
                           Image.asset(
-                            'assets/img/banner_header.png', // Sesuaikan nama file gambar kamu
+                            'assets/img/banner_header.png',
                             width: double.infinity,
                             height: double.infinity,
                             fit: BoxFit.fill,
                           ),
-              
-                          // Label Teks "Jasa" (Posisi top: 4 sesuai keinginan)
                           const Positioned(
                             left: 16,
                             top: 4,
@@ -432,8 +425,6 @@ class _BuatOrderScreenState extends State<BuatOrderScreen> {
                               ),
                             ),
                           ),
-              
-                          // Nama Kategori Jasa (Misal: Kebersihan Harian)
                           Positioned(
                             left: 16,
                             bottom: 8,
@@ -447,8 +438,6 @@ class _BuatOrderScreenState extends State<BuatOrderScreen> {
                               ),
                             ),
                           ),
-              
-                          // Icon Kategori di Pojok Kanan Banner
                           Positioned(
                             right: 16,
                             top: 0,
@@ -474,10 +463,7 @@ class _BuatOrderScreenState extends State<BuatOrderScreen> {
                         ],
                       ),
                     ),
-              
                     const SizedBox(height: 16),
-              
-                    // 3. FORM INPUT
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16.0),
                       child: Column(
@@ -495,8 +481,6 @@ class _BuatOrderScreenState extends State<BuatOrderScreen> {
                             ),
                           ),
                           const SizedBox(height: 12),
-              
-                          // Alamat Order
                           const Text('Alamat Order :', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                           const SizedBox(height: 6),
                           InkWell(
@@ -526,8 +510,6 @@ class _BuatOrderScreenState extends State<BuatOrderScreen> {
                             ),
                           ),
                           const SizedBox(height: 12),
-              
-                          // Pilih Jasa Dropdown
                           const Text('Pilih Jasa', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                           const SizedBox(height: 6),
                           Container(
@@ -557,8 +539,6 @@ class _BuatOrderScreenState extends State<BuatOrderScreen> {
                             ),
                           ),
                           const SizedBox(height: 12),
-              
-                          // Deskripsi Pekerjaan
                           const Text('Deskripsi Pekerjaan :', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                           const SizedBox(height: 6),
                           TextField(
@@ -580,8 +560,6 @@ class _BuatOrderScreenState extends State<BuatOrderScreen> {
                             ),
                           ),
                           const SizedBox(height: 12),
-              
-                          // Unggah Foto
                           const Text('Unggah Foto (Maks. 2)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                           const SizedBox(height: 8),
                           Row(
@@ -617,8 +595,6 @@ class _BuatOrderScreenState extends State<BuatOrderScreen> {
                             }),
                           ),
                           const SizedBox(height: 16),
-              
-                          // Est. Jumlah / Luas
                           _buildRowInput(
                             label: 'Est. Jumlah / Luas',
                             controller: _jumlahController,
@@ -627,8 +603,6 @@ class _BuatOrderScreenState extends State<BuatOrderScreen> {
                             onChanged: (val) => setState(() => _satuanJumlah = val!),
                           ),
                           const SizedBox(height: 10),
-              
-                          // Est. Selesai
                           _buildRowInput(
                             label: 'Est. Selesai',
                             controller: _selesaiController,
@@ -637,8 +611,6 @@ class _BuatOrderScreenState extends State<BuatOrderScreen> {
                             onChanged: (val) => setState(() => _satuanSelesai = val!),
                           ),
                           const SizedBox(height: 10),
-              
-                          // Waktu Penawaran
                           Row(
                             children: [
                               const Expanded(
@@ -673,8 +645,6 @@ class _BuatOrderScreenState extends State<BuatOrderScreen> {
                             ],
                           ),
                           const SizedBox(height: 24),
-              
-                          // Tombol Submit Order
                           SizedBox(
                             width: double.infinity,
                             height: 48,
@@ -703,7 +673,7 @@ class _BuatOrderScreenState extends State<BuatOrderScreen> {
             ),
             if (_isLoading)
               Container(
-                color: Colors.black.withOpacity(0.5),
+                color: Colors.black.withValues(alpha: 0.5),
                 child: const Center(
                   child: CircularProgressIndicator(color: Color(0xFFFFCB05)),
                 ),

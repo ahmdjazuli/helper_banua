@@ -3,7 +3,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import '../../widgets/background.dart';
-import '../../widgets/format_angka.dart';
 
 class RiwayatTransaksiScreen extends StatefulWidget {
   const RiwayatTransaksiScreen({super.key});
@@ -144,7 +143,7 @@ class _RiwayatTransaksiScreenState extends State<RiwayatTransaksiScreen> {
                                         borderRadius: BorderRadius.circular(12),
                                         boxShadow: [
                                           BoxShadow(
-                                            color: Colors.black.withOpacity(0.08),
+                                            color: Colors.black.withValues(alpha: 0.08),
                                             blurRadius: 6,
                                             offset: const Offset(0, 2),
                                           ),
@@ -224,7 +223,7 @@ class _RiwayatTransaksiScreenState extends State<RiwayatTransaksiScreen> {
                                     color: Colors.white,
                                     boxShadow: [
                                       BoxShadow(
-                                        color: Colors.black.withOpacity(0.05),
+                                        color: Colors.black.withValues(alpha: 0.05),
                                         blurRadius: 10,
                                         offset: const Offset(0, -2),
                                       ),

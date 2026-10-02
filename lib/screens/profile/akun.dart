@@ -75,6 +75,7 @@ class _AkunScreenState extends State<AkunScreen> {
 
         if (userDoc.exists && userDoc.data() != null) {
           Map<String, dynamic> data = userDoc.data() as Map<String, dynamic>;
+          if (!mounted) return;
           setState(() {
             _namaController.text = data['nama'] ?? _namaController.text;
             _phoneController.text = data['phone'] ?? '';
@@ -106,13 +107,12 @@ class _AkunScreenState extends State<AkunScreen> {
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
+      if (!mounted) return;
       setState(() {
         _isMitraActive = true;
       });
 
-      if (mounted) {
-        _showMitraAppRedirectDialog();
-      }
+      _showMitraAppRedirectDialog();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -120,7 +120,9 @@ class _AkunScreenState extends State<AkunScreen> {
         );
       }
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -128,7 +130,7 @@ class _AkunScreenState extends State<AkunScreen> {
   void _showMitraAppRedirectDialog() {
     showDialog(
       context: context,
-      builder: (context) {
+      builder: (dialogContext) {
         return AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: const Row(
@@ -155,12 +157,12 @@ class _AkunScreenState extends State<AkunScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => Navigator.pop(dialogContext),
               child: const Text('Tutup', style: TextStyle(color: Colors.black)),
             ),
             ElevatedButton(
               onPressed: () {
-                Navigator.pop(context);
+                Navigator.pop(dialogContext);
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFFFCB05),
@@ -259,7 +261,7 @@ class _AkunScreenState extends State<AkunScreen> {
 
     showDialog(
       context: context,
-      builder: (context) {
+      builder: (dialogContext) {
         return AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: const Row(
@@ -318,7 +320,7 @@ class _AkunScreenState extends State<AkunScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => Navigator.pop(dialogContext),
               child: const Text('Batal', style: TextStyle(color: Colors.black)),
             ),
             ElevatedButton(
@@ -326,13 +328,15 @@ class _AkunScreenState extends State<AkunScreen> {
               onPressed: () async {
                 final String inputPin = pinControllers.map((c) => c.text).join();
                 if (inputPin.length < 6) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Masukkan 6 digit PIN Transaksi dengan lengkap!')),
-                  );
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Masukkan 6 digit PIN Transaksi dengan lengkap!')),
+                    );
+                  }
                   return;
                 }
 
-                Navigator.pop(context);
+                Navigator.pop(dialogContext);
                 _executeDeleteAccountWithPin(inputPin);
               },
               child: const Text('Hapus Akun', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
@@ -461,15 +465,14 @@ class _AkunScreenState extends State<AkunScreen> {
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
+      if (!mounted) return;
       setState(() {
         _photoUrl = downloadUrl;
       });
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Foto profil berhasil diperbarui!')),
-        );
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Foto profil berhasil diperbarui!')),
+      );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -477,7 +480,9 @@ class _AkunScreenState extends State<AkunScreen> {
         );
       }
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -488,7 +493,7 @@ class _AkunScreenState extends State<AkunScreen> {
 
     showDialog(
       context: context,
-      builder: (context) {
+      builder: (dialogContext) {
         return AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: const Row(
@@ -546,7 +551,7 @@ class _AkunScreenState extends State<AkunScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => Navigator.pop(dialogContext),
               child: const Text('Batal', style: TextStyle(color: Colors.black)),
             ),
             ElevatedButton(
@@ -557,9 +562,11 @@ class _AkunScreenState extends State<AkunScreen> {
               onPressed: () async {
                 final String newPin = pinControllers.map((c) => c.text).join();
                 if (newPin.length < 6) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('PIN harus terdiri dari 6 digit angka!')),
-                  );
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('PIN harus terdiri dari 6 digit angka!')),
+                    );
+                  }
                   return;
                 }
 
@@ -570,8 +577,10 @@ class _AkunScreenState extends State<AkunScreen> {
                     'updatedAt': FieldValue.serverTimestamp(),
                   }, SetOptions(merge: true));
 
+                  if (dialogContext.mounted) {
+                    Navigator.pop(dialogContext);
+                  }
                   if (mounted) {
-                    Navigator.pop(context);
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         backgroundColor: Colors.green,
@@ -595,7 +604,7 @@ class _AkunScreenState extends State<AkunScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (BuildContext context) {
+      builder: (bottomSheetContext) {
         return SafeArea(
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 12.0),
@@ -611,7 +620,7 @@ class _AkunScreenState extends State<AkunScreen> {
                   leading: const Icon(Icons.photo_library, color: Colors.black),
                   title: const Text('Pilih dari Galeri'),
                   onTap: () {
-                    Navigator.pop(context);
+                    Navigator.pop(bottomSheetContext);
                     _pickAndUploadImage(ImageSource.gallery);
                   },
                 ),
@@ -619,7 +628,7 @@ class _AkunScreenState extends State<AkunScreen> {
                   leading: const Icon(Icons.camera_alt, color: Colors.black),
                   title: const Text('Ambil dari Kamera'),
                   onTap: () {
-                    Navigator.pop(context);
+                    Navigator.pop(bottomSheetContext);
                     _pickAndUploadImage(ImageSource.camera);
                   },
                 ),

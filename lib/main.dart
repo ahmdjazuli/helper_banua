@@ -8,7 +8,7 @@ import 'services/fcm_service.dart';
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
-  print("Notifikasi masuk saat aplikasi ditutup: ${message.messageId}");
+  debugPrint("Notifikasi masuk saat aplikasi ditutup: ${message.messageId}");
 }
 
 void main() async {
